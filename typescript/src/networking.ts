@@ -8,7 +8,7 @@ import {
   serialize_message,
 } from "./serialization.ts";
 
-export const udp_init = (port: number) => Deno.listenDatagram({ port, transport: "udp" })
+export const udp_init = (port: number) => Deno.listenDatagram({ port, transport: "udp" });
 
 export function udp_send(
   udp: Deno.DatagramConn,

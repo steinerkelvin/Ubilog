@@ -8,7 +8,8 @@ export const valid_octet = (octet: number) => !isNaN(octet) && octet >= 0 && oct
 
 function get_address_hostname(address: AddressPort): string {
   switch (address._) {
-    case "IPv4": return address.octets.join(".");
+    case "IPv4":
+      return address.octets.join(".");
   }
   throw "FAILURE";
 }

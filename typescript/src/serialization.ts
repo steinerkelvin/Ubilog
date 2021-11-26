@@ -219,7 +219,7 @@ export function deserialize_address(bits: BitStr): [BitStr, AddressPort] {
     [bits, port] = deserialize_fixed_len(16, bits);
     const octets = [val0, val1, val2, val3].map(Number).map(u8.mask) as Quadruple<U8>;
     return [bits, { _: "IPv4", octets, port: u16.mask(Number(port)) }];
-  } 
+  }
   // TODO: handle error on bad serialization of messages?
   throw "bad address deserialization";
 }

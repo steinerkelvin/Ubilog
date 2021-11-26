@@ -1,7 +1,7 @@
 # TODO
 
-- mined slices tracking
 - re-implement immutable set
+- pool size limit
 
 - Deno executable
 
@@ -14,8 +14,6 @@
 - native mining module in Rust
   - FFI
   - bind gen?
-
-- pool size limit
 
 - implement IPv6
   - investigate why Deno isn't accepting IPv6 addresses

@@ -182,6 +182,7 @@ function initial_chain(): Chain {
 function handle_block(chain: Chain, block: Block, time: U64): { tip_was_updated: boolean } {
   let tip_was_updated = false;
   const must_add: Block[] = [block];
+
   while (must_add.length > 0) {
     const block = must_add.pop() ?? BLOCK_ZERO;
     const b_time = block.time >> 192n;
@@ -198,14 +199,18 @@ function handle_block(chain: Chain, block: Block, time: U64): { tip_was_updated:
   return { tip_was_updated };
 }
 
-function add_block(chain: Chain, block: Block): { pending: Block[]; tip_was_updated: boolean } {
-  let pending: Block[] = [];
+function add_block(
+  chain: Chain,
+  block: Block,
+): { pending: Block[]; tip_was_updated: boolean; added: boolean } {
+  let added = false;
   let tip_was_updated = false;
+  let pending: Block[] = [];
 
   const b_hash = hash_block(block);
   if (chain.block.get(b_hash) !== undefined) {
     // Block is already present in the database
-    return { pending, tip_was_updated };
+    return { pending, tip_was_updated, added };
   }
 
   const prev_hash = block.prev;
@@ -220,8 +225,9 @@ function add_block(chain: Chain, block: Block): { pending: Block[]; tip_was_upda
     }
   } // If previous block is available, add the block
   else {
+    added = true;
     // console.log("  ++ adding block".padEnd(30, " "), b_hash); // DEBUG
-    // TODO: ??
+    // TODO: ?? refactor.
     chain.block.set(b_hash, block);
     chain.work.set(b_hash, 0n);
     chain.height.set(b_hash, 0n);
@@ -286,7 +292,7 @@ function add_block(chain: Chain, block: Block): { pending: Block[]; tip_was_upda
     chain.pending.delete(b_hash);
   }
   chain.seen.set(b_hash, true);
-  return { pending, tip_was_updated };
+  return { pending, tip_was_updated, added };
 }
 
 function get_longest_chain(chain: Chain): Array<Block> {
@@ -315,8 +321,8 @@ function show_block(chain: Chain, block: Block, index: number) {
   const show_work = work.toString();
   const show_body = block.body.join(", ");
   // deno-fmt-ignore
-  const header = [pad_left(8, " ", show_index), pad_left(13, "0", show_time), pad_left(64, "0", show_hash), pad_left(16, "0", show_work), pad_left(16, "0", show_body)];
-  return (header.join(" | "));
+  const fields = [pad_left(8, " ", show_index), pad_left(13, "0", show_time), pad_left(64, "0", show_hash), pad_left(16, "0", show_work), show_body];
+  return (fields.join(" | "));
 }
 
 function show_chain(chain: Chain, lines: number) {
@@ -325,7 +331,8 @@ function show_chain(chain: Chain, lines: number) {
   const add = lim > lines ? lim / lines : 1;
   const pad_s = (x: number) => (txt: string) => pad_left(x, " ", txt);
   // deno-fmt-ignore
-  let text = `${pad_s(8)("#")} | ${pad_s(13)("time")} | ${pad_s(64)("hash")} | ${pad_s(16)("work")} | ${pad_s(64)("body")} \n`;
+  const fields = [pad_s(8)("#"), pad_s(13)("time"), pad_s(64)("hash"), pad_s(16)("work"), pad_s(64)("body")];
+  let text = fields.join(" | ") + "\n";
   for (let i = 0; i < blocks.length - 1; i += add) {
     text += show_block(chain, blocks[i], i) + "\n";
   }
@@ -502,8 +509,11 @@ export function start_node(
       // console.log("=> block MINED".padEnd(30, " ")); // DEBUG
       const [new_block, rand] = mined;
       MINED += 1;
-      handle_block(node.chain, new_block, get_time());
+      const { tip_was_updated } = handle_block(node.chain, new_block, get_time());
       write_block(new_block, rand);
+      if (tip_was_updated) {
+        build_next_block_body();
+      }
     }
     // Let other jobs run and loop
     setTimeout(miner, 0);
@@ -573,21 +583,22 @@ export function start_node(
     console.log("Ubilog");
     console.log("======");
     console.log("");
-    console.log("- current_time  : " + get_time() + " UTC");
-    console.log("- online_peers  : " + Object.keys(node.peers).length + " peers");
-    console.log("- chain_height  : " + get_longest_chain(node.chain).length + " blocks");
-    console.log("- database      : " + (node.chain.block.size - 1) + " blocks");
+    console.log(`- port          : ${cfg.port}`);
+    console.log(`- current_time  : ${get_time()} UTC`);
+    console.log(`- online_peers  : ${Object.keys(node.peers).length} peers`);
+    console.log(`- chain_height  : ${get_longest_chain(node.chain).length} blocks`);
+    console.log(`- database      : ${node.chain.block.size - 1} blocks`);
     console.log(`- pending       : ${pending_size} blocks (${pending_seen} downloaded)`);
     console.log(`- total_mined   : ${MINED} blocks`);
-    // console.log("- own_hash_rate : " + MINER_HASHRATE + " hashes / second");
-    console.log("- net_hash_rate : " + rate + " hashes / second");
-    console.log("- difficulty    : " + diff + " hashes / block");
-    console.log("- peers: ", all_peers().map((p) => JSON.stringify(p.address)).join(", "));
+    // console.log(`- own_hash_rate : ${MINER_HASHRATE} hashes / second`);
+    console.log(`- net_hash_rate : ${rate} hashes / second`);
+    console.log(`- difficulty    : ${diff} hashes / block`);
+    console.log(`- peers: ${all_peers().map((p) => JSON.stringify(p.address)).join(", ")}`);
     console.log("");
     console.log("Blocks");
     console.log("------");
     console.log("");
-    console.log(show_chain(node.chain, 16));
+    console.log(show_chain(node.chain, 32));
     console.log();
   }
 
@@ -606,9 +617,6 @@ export function start_node(
     miner();
   }
   if (cfg.display) {
-    setTimeout(
-      () => setInterval(displayer, 1000), //
-      900,
-    );
+    setTimeout(() => setInterval(displayer, 1000), 500);
   }
 }

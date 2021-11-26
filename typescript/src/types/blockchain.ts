@@ -20,6 +20,7 @@ export type Block = {
   body: BlockBody; // 1280 bytes
 };
 
+// TODO: refactor: nest fields
 export type Chain = {
   block: HashMap<Block>;
   children: HashMap<Array<Hash>>;

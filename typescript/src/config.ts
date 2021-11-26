@@ -54,7 +54,7 @@ const config_schema: ConfigSchema<ConfigTypes> = {
 };
 
 export const DEFAULT_CONFIG = {
-  peers: ["127.0.0.1:42000", "127.0.0.1:42001", "127.0.0.1:42002"],
+  peers: ["127.0.0.1:42001", "127.0.0.1:42002", "127.0.0.1:42003"],
 };
 
 export function load_config_file(base_dir: string): JSONValue {
